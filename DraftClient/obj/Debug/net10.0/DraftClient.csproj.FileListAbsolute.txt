@@ -1,0 +1,15 @@
+C:\Users\udeme\Draft Room\DraftClient\bin\Debug\net10.0\DraftClient.exe
+C:\Users\udeme\Draft Room\DraftClient\bin\Debug\net10.0\DraftClient.deps.json
+C:\Users\udeme\Draft Room\DraftClient\bin\Debug\net10.0\DraftClient.runtimeconfig.json
+C:\Users\udeme\Draft Room\DraftClient\bin\Debug\net10.0\DraftClient.dll
+C:\Users\udeme\Draft Room\DraftClient\bin\Debug\net10.0\DraftClient.pdb
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.AssemblyInfoInputs.cache
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.AssemblyInfo.cs
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.csproj.CoreCompileInputs.cache
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.sourcelink.json
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.dll
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\refint\DraftClient.dll
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.pdb
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\DraftClient.genruntimeconfig.cache
+C:\Users\udeme\Draft Room\DraftClient\obj\Debug\net10.0\ref\DraftClient.dll

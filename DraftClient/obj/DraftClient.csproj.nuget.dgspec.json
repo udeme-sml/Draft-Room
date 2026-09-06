@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\udeme\\Draft Room\\draft-client\\DraftClient\\DraftClient.csproj": {}
+    "C:\\Users\\udeme\\Draft Room\\DraftClient\\DraftClient.csproj": {}
   },
   "projects": {
-    "C:\\Users\\udeme\\Draft Room\\draft-client\\DraftClient\\DraftClient.csproj": {
+    "C:\\Users\\udeme\\Draft Room\\DraftClient\\DraftClient.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\udeme\\Draft Room\\draft-client\\DraftClient\\DraftClient.csproj",
+        "projectUniqueName": "C:\\Users\\udeme\\Draft Room\\DraftClient\\DraftClient.csproj",
         "projectName": "DraftClient",
-        "projectPath": "C:\\Users\\udeme\\Draft Room\\draft-client\\DraftClient\\DraftClient.csproj",
+        "projectPath": "C:\\Users\\udeme\\Draft Room\\DraftClient\\DraftClient.csproj",
         "packagesPath": "C:\\Users\\udeme\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\udeme\\Draft Room\\draft-client\\DraftClient\\obj\\",
+        "outputPath": "C:\\Users\\udeme\\Draft Room\\DraftClient\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
