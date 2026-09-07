@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json.Nodes;
 
 namespace DraftClient
 {
@@ -21,6 +22,7 @@ namespace DraftClient
                 await webSocket.ConnectAsync(serverUri, CancellationToken.None);
                 Console.WriteLine("WebSocket connection opened");
 
+                // Receive messages from the server
                 _ = Task.Run(async () =>
                 {
                     while (webSocket.State == WebSocketState.Open)
@@ -31,7 +33,32 @@ namespace DraftClient
                         {
                             result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
                             string message = Encoding.UTF8.GetString(buffer.Array, 0, result.Count);
-                            Console.WriteLine(message);
+                            JsonNode json = JsonNode.Parse(message);
+
+                            switch (json["type"]?.ToString())
+                            {
+                                case "serverMessage":
+                                    Console.WriteLine(json["message"]?.ToString());
+                                    break;
+                                case "error":
+                                    Console.WriteLine(json["message"]?.ToString());
+                                    break;
+                                case "serverRequest":
+                                    Console.WriteLine(json["request"]?.ToString());
+                                    break;
+                                case "chat":
+                                    Console.WriteLine($"{json["from"]?.ToString()}: {json["text"]?.ToString()}");
+                                    break;
+                                case "userJoined":
+                                    Console.WriteLine($"{json["name"]?.ToString()} joined the chat");
+                                    break;
+                                case "userList":
+                                    Console.WriteLine($"Users: {string.Join(", ", json["users"]?.AsArray().Select(user => user.ToString()))}");
+                                    break;
+                                default:
+                                    Console.WriteLine(json["message"]?.ToString());
+                                    break;
+                            }
                         }
                         while (!result.EndOfMessage);
                     }

@@ -13,46 +13,46 @@ wss.on('connection', function connection(ws) {
 
         if (ws.name === null) {
             if (data.toString().trim() === '') {
-                ws.send('name cannot be empty');
+                ws.send(JSON.stringify({ type: 'error', message: 'name cannot be empty' }));
                 return;
             }
             if (data.toString().trim().length > 16) {
-                ws.send('name cannot be longer than 16 characters');
+                ws.send(JSON.stringify({ type: 'error', message: 'name cannot be longer than 16 characters' }));
                 return;
             }
             ws.name = data.toString().trim().replaceAll(' ', '_');
             wss.clients.forEach(function each(client) {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
-                    client.send(`${ws.name} joined the chat`);
+                    client.send(JSON.stringify({ type: 'userJoined', name: ws.name }));
                 }
             });
-            let users = [];
-            wss.clients.forEach(function each(client) {
-                if (client.readyState === WebSocket.OPEN && client.name !== null) {
-                    users.push(client.name);
-                }
-            })
-            ws.send(`Users: ${users.join(', ')}`);
+            let users = getUsers();
+            ws.send(JSON.stringify({ type: 'userList', users: users }));
             return;
         }
         if (data.toString().trim() === '/users') {
-            let users = [];
-            wss.clients.forEach(function each(client) {
-                if (client.readyState === WebSocket.OPEN && client.name !== null) {
-                    users.push(client.name);
-                }
-            })
-            ws.send(`Users: ${users.join(', ')}`);
+            let users = getUsers();
+            ws.send(JSON.stringify({ type: 'userList', users: users }));
             return;
         }
         wss.clients.forEach(function each(client) {
             if (client.readyState === WebSocket.OPEN && client !== ws) {
-                client.send(`${ws.name}: ${data.toString()}`);
+                client.send(JSON.stringify({ type: 'chat', from: ws.name, text: data.toString() }));
             }
         })
     });
 
-    ws.send('connected');
+    ws.send(JSON.stringify({ type: 'serverMessage', message: 'connected' }));
     console.log('connection established');
-    ws.send('name: ');
+    ws.send(JSON.stringify({ type: 'serverRequest', request: 'name: ' }));
 });
+
+function getUsers() {
+    let users = [];
+            wss.clients.forEach(function each(client) {
+                if (client.readyState === WebSocket.OPEN && client.name !== null) {
+                    users.push(client.name);
+                }
+            })
+    return users;
+}
