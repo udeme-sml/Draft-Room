@@ -1,4 +1,4 @@
-import { WebSocketServer} from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 
 const wss = new WebSocketServer({ port: 8080 });
@@ -26,10 +26,27 @@ wss.on('connection', function connection(ws) {
                     client.send(`${ws.name} joined the chat`);
                 }
             });
+            let users = [];
+            wss.clients.forEach(function each(client) {
+                if (client.readyState === WebSocket.OPEN && client.name !== null) {
+                    users.push(client.name);
+                }
+            })
+            ws.send(`Users: ${users.join(', ')}`);
+            return;
+        }
+        if (data.toString().trim() === '/users') {
+            let users = [];
+            wss.clients.forEach(function each(client) {
+                if (client.readyState === WebSocket.OPEN && client.name !== null) {
+                    users.push(client.name);
+                }
+            })
+            ws.send(`Users: ${users.join(', ')}`);
             return;
         }
         wss.clients.forEach(function each(client) {
-            if (client.readyState === WebSocket.OPEN) {
+            if (client.readyState === WebSocket.OPEN && client !== ws) {
                 client.send(`${ws.name}: ${data.toString()}`);
             }
         })
