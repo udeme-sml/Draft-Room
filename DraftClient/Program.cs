@@ -31,7 +31,7 @@ namespace DraftClient
                         {
                             result = await webSocket.ReceiveAsync(buffer, CancellationToken.None);
                             string message = Encoding.UTF8.GetString(buffer.Array, 0, result.Count);
-                            Console.WriteLine("Received message: " + message);
+                            Console.WriteLine(message);
                         }
                         while (!result.EndOfMessage);
                     }
