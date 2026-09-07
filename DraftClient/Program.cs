@@ -7,6 +7,16 @@ using System.Text.Json.Nodes;
 
 namespace DraftClient
 {
+    public static class ConsoleExtensions
+    {
+        public static void WriteLine(string message, ConsoleColor color)
+        {
+            Console.ForegroundColor = color;
+            Console.WriteLine(message);
+            Console.ResetColor();
+        }
+    }
+
     class Program
     {
         private static async Task Main(string[] args)
@@ -38,10 +48,10 @@ namespace DraftClient
                             switch (json["type"]?.ToString())
                             {
                                 case "serverMessage":
-                                    Console.WriteLine(json["message"]?.ToString());
+                                    ConsoleExtensions.WriteLine(json["message"]?.ToString(), ConsoleColor.Yellow);
                                     break;
                                 case "error":
-                                    Console.WriteLine(json["message"]?.ToString());
+                                    ConsoleExtensions.WriteLine(json["message"]?.ToString(), ConsoleColor.Red);
                                     break;
                                 case "serverRequest":
                                     Console.WriteLine(json["request"]?.ToString());
@@ -50,10 +60,10 @@ namespace DraftClient
                                     Console.WriteLine($"{json["from"]?.ToString()}: {json["text"]?.ToString()}");
                                     break;
                                 case "userJoined":
-                                    Console.WriteLine($"{json["name"]?.ToString()} joined the chat");
+                                    ConsoleExtensions.WriteLine($"{json["name"]?.ToString()} joined the chat", ConsoleColor.Green);
                                     break;
                                 case "userList":
-                                    Console.WriteLine($"Users: {string.Join(", ", json["users"]?.AsArray().Select(user => user.ToString()))}");
+                                    ConsoleExtensions.WriteLine($"Users: {string.Join(", ", json["users"]?.AsArray().Select(user => user.ToString()))}", ConsoleColor.Yellow);
                                     break;
                                 default:
                                     Console.WriteLine(json["message"]?.ToString());
