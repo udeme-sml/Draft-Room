@@ -3,30 +3,30 @@ import { v4 as uuidv4 } from 'uuid';
 
 const wss = new WebSocketServer({ port: 8080 });
 
-const players = [
-    "Lebron James",
-    "Stephen Curry",
-    "Kevin Durant",
-    "Luka Doncic",
-    "Victor Wembanyama",
-    "Nikola Jokic",
-    "Shai Gilgeous-Alexander",
-    "Joel Embiid",
-    "James Harden",
-    "Kyrie Irving",
-    "Paul George",
-    "Kawhi Leonard",
-    "Anthony Davis",
-    "Russell Westbrook",
-    "LaMelo Ball",
-    "Jayson Tatum",
-    "Jaylen Brown",
-    "Giannis Antetokounmpo",
-    "Damian Lillard",
-    "Jamal Murray",
-    "Deni Avdija",
-    "Donovan Mitchell"
-];
+const players = {
+    "lebron james": null,
+    "stephen curry": null,
+    "kevin durant": null,
+    "luka doncic": null,
+    "victor wembanyama": null,
+    "nikola jokic": null,
+    "shai gilgeous-alexander": null,
+    "joel embiid": null,
+    "james harden": null,
+    "kyrie irving": null,
+    "paul george": null,
+    "kawhi leonard": null,
+    "anthony davis": null,
+    "russell westbrook": null,
+    "lamelo ball": null,
+    "jayson tatum": null,
+    "jaylen brown": null,
+    "giannis antetokounmpo": null,
+    "damian lillard": null,
+    "jamal murray": null,
+    "deni avdija": null,
+    "donovan mitchell": null
+};
 
 let turnOrder = [];
 let turn = 0;
@@ -93,9 +93,24 @@ wss.on('connection', function connection(ws) {
                 ws.send(JSON.stringify({ type: 'error', message: `It is ${turnOrder[turn]}'s turn to pick` }))
                 return;
             }
+            const namePart = data.toString().trim().split(/\s(.*)/)[1];
+            if (namePart === undefined) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player name cannot be empty' }))
+                return;
+            }
+            const player = namePart.trim().toLowerCase();
+            if (!(player in players)) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Player does not exist' }))
+                return;
+            }
+            if (players[player] !== null) {
+                ws.send(JSON.stringify({ type: 'error', message: `Player already picked by ${players[player]}` }))
+                return;
+            }
+            players[player] = ws.name;
             wss.clients.forEach(function each(client) {
                 if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} picked` }))
+                    client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} picked ${player}` }))
                 }
             });
             if (turn >= turnOrder.length - 1) {
