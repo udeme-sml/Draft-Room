@@ -140,6 +140,32 @@ wss.on('connection', function connection(ws) {
     ws.send(JSON.stringify({ type: 'serverMessage', message: 'Connected' }));
     console.log('connection established');
     ws.send(JSON.stringify({ type: 'serverRequest', request: 'Name: ' }));
+
+    ws.on('close', function close() {
+        if (turnOrder.includes(ws.name)) {
+            turnOrder.splice(turnOrder.indexOf(ws.name), 1);
+        }
+        if (!draftStarted && ws.name !== null) {
+            wss.clients.forEach(function each(client) {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'userLeft', name: ws.name }));
+                }
+            });
+        } else if (draftStarted && ws.name !== null) {
+            draftStarted = false;
+            turn = 0;
+            let playersArray = Object.keys(players);
+            for (let i = 0; i < playersArray.length; i++) {
+                players[playersArray[i]] = null;
+            }
+            wss.clients.forEach(function each(client) {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ type: 'userLeft', name: ws.name }));
+                    client.send(JSON.stringify({ type: 'error', message: `Draft ended because ${ws.name} left` }))
+                }
+            });
+        }
+    });
 });
 
 function getUsers() {

@@ -65,6 +65,9 @@ namespace DraftClient
                                 case "userList":
                                     ConsoleExtensions.WriteLine($"Users: {string.Join(", ", json["users"]?.AsArray().Select(user => user.ToString()))}", ConsoleColor.Yellow);
                                     break;
+                                case "userLeft":
+                                    ConsoleExtensions.WriteLine($"{json["name"]?.ToString()} left the chat", ConsoleColor.Red);
+                                    break;
                                 default:
                                     Console.WriteLine(json["message"]?.ToString());
                                     break;
