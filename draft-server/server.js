@@ -29,6 +29,7 @@ const players = {
 };
 
 let turnOrder = [];
+let waitingList = [];
 let turn = 0;
 let draftStarted = false;
 
@@ -54,8 +55,20 @@ wss.on('connection', function connection(ws) {
                 data.toString().trim().includes(':')) {
                 ws.send(JSON.stringify({ type: 'error', message: 'Name cannot contain invalid characters' }));
                 return;
+            }            
+            if (turnOrder.includes(data.toString().trim().replaceAll(' ', '_'))) {
+                ws.name = null;
+                ws.send(JSON.stringify({ type: 'error', message: 'Name already taken' }));
+                return;
             }
-            ws.name = data.toString().trim().replaceAll(' ', '_');
+            ws.pendingName = data.toString().trim().replaceAll(' ', '_'); //give it a pending name so it can be added to the waiting list with a name
+            if (draftStarted) {
+                ws.send(JSON.stringify({ type: 'error', message: 'Draft already started, wait for it to end' }));
+                waitingList.push(ws);
+                return;
+            }
+            ws.name = ws.pendingName;
+            ws.pendingName = null;
             wss.clients.forEach(function each(client) {
                 if (client !== ws && client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify({ type: 'userJoined', name: ws.name }));
@@ -144,6 +157,8 @@ wss.on('connection', function connection(ws) {
     ws.on('close', function close() {
         if (turnOrder.includes(ws.name)) {
             turnOrder.splice(turnOrder.indexOf(ws.name), 1);
+        } else if (waitingList.includes(ws)) {
+            waitingList.splice(waitingList.indexOf(ws), 1);
         }
         if (!draftStarted && ws.name !== null) {
             wss.clients.forEach(function each(client) {
@@ -164,10 +179,13 @@ wss.on('connection', function connection(ws) {
                     client.send(JSON.stringify({ type: 'error', message: `Draft ended because ${ws.name} left` }))
                 }
             });
+            onDraftEnd();
         }
     });
 });
 
+
+// getUsers() function returns an array of every connected and named client in the server
 function getUsers() {
     let users = [];
             wss.clients.forEach(function each(client) {
@@ -176,4 +194,27 @@ function getUsers() {
                 }
             })
     return users;
+}
+
+//onDraftEnd() function is called at the end of the draft to clear waiting list
+function onDraftEnd() {
+    if (waitingList.length > 0) {
+        //maybe unoptimal, but informs everyone all of the users that joined from the waiting list
+        wss.clients.forEach(function each(client) {
+            waitingList.forEach(function each(ws) {
+                if (client.readyState === WebSocket.OPEN && client !== ws) {
+                    client.send(JSON.stringify({ type: 'userJoined', name: ws.pendingName }));
+                }
+            });
+        });
+        waitingList.forEach(function each(client) {
+            if (client.readyState === WebSocket.OPEN) {
+                turnOrder.push(client.pendingName); //adds client to the draft list
+                client.name = client.pendingName;
+                client.pendingName = null;
+                client.send(JSON.stringify({ type: 'userList', users: getUsers() }));
+            }
+        });
+        waitingList = []; //clears the waiting list
+    }
 }
