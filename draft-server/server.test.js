@@ -100,3 +100,87 @@ test('Two clients connect to the server', async () => {
     assert(response2.users[0] === 'Alice');
     assert(response2.users[1] === 'Bob');
 })
+
+test('/users returns every user in the room', async () => {
+    const client1 = new WebSocket(`ws://localhost:${server.address().port}`);
+    const client2 = new WebSocket(`ws://localhost:${server.address().port}`);
+    const client3 = new WebSocket(`ws://localhost:${server.address().port}`);
+
+    const serverResponse1 = new Promise((resolve, reject) => {
+
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+
+        client1.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client1.send('Alice');
+            } else if (data.type === 'userList') {
+                resolve(data);
+                clearTimeout(timeout);
+            }
+        });
+
+        client1.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client1.close();
+        });
+    });
+
+    const serverResponse2 = new Promise((resolve, reject) => {
+
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+
+        client2.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client2.send('Bob');
+            } else if (data.type === 'userList') {
+                resolve(data);
+                clearTimeout(timeout);
+            }
+        });
+
+        client2.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client2.close();
+        });
+    });
+
+    const serverResponse3 = new Promise((resolve, reject) => {
+
+        let sentMessage = false;
+
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+
+        client3.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client3.send('Charlie');
+            } else if (data.type === 'userList' && !sentMessage) {
+                sentMessage = true;
+                client3.send('/users');
+            } else if (data.type === 'userList' && sentMessage) {
+                resolve(data);
+                clearTimeout(timeout);
+            }
+        });
+
+        client3.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client3.close();
+        });
+    });
+
+    const [response1, response2, response3] = await Promise.all([serverResponse1, serverResponse2, serverResponse3]);
+    try {
+        assert(response3.users.length === 3);
+        assert.deepStrictEqual([...response3.users].sort(), ['Alice', 'Bob', 'Charlie']);
+    } finally {
+        client1.close();
+        client2.close();
+        client3.close();
+    }
+});
