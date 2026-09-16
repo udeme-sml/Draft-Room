@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert';
 import { WebSocket } from 'ws';
 import createServer from './server.js';
+import { waitForOpen, waitForMessage, connectAndName, connectLobby, startDraftClient } from './test-helpers.js';
 
 const PORT = 0;
 let server;
@@ -235,7 +236,7 @@ test('/start with two players succeeds', async () => {
                 client1.send('/start');
             } else if (data.type === 'serverMessage' && data.message !== 'Connected') {
                 messages.push(data);
-                if (messages.length === 1) {
+                if (messages.length === 2) {
                     resolve(messages);
                     clearTimeout(timeout);
                     client1.close();
@@ -261,7 +262,7 @@ test('/start with two players succeeds', async () => {
                 client2.send('Bob');
             } else if (data.type === 'serverMessage' && data.message !== 'Connected') {
                 messages.push(data);
-                if (messages.length === 1) {
+                if (messages.length === 2) {
                     resolve(messages);
                     clearTimeout(timeout);
                     client2.close();
@@ -286,3 +287,24 @@ test('/start with two players succeeds', async () => {
     assert(response2[1].type === 'serverMessage');
     assert(response2[1].message === 'Alice is picking first...' || response2[1].message === 'Bob is picking first...');
 });
+
+// /pick rules
+test('Valid pick', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    
+    const p1 = waitForMessage(clients[0].client, (data) => data.type === 'serverMessage' && data.message.includes(' picked '));
+    const p2 = waitForMessage(clients[1].client, (data) => data.type === 'serverMessage' && data.message.includes('is picking next'));
+
+    clients[0].client.send('/pick lebron james');
+
+    const [response1, response2] = await Promise.all([p1, p2]);
+
+    assert(response1.type === 'serverMessage');
+    assert(response1.message === 'Alice picked lebron james');
+    assert(response2.type === 'serverMessage');
+    assert(response2.message === 'Bob is picking next...');
+
+    clients[0].client.close();
+    clients[1].client.close();
+})
