@@ -19,13 +19,16 @@ after(() => {
 test('One client connects to the server', async () => {
     const client = new WebSocket(`ws://localhost:${server.address().port}`);
 
+    let dat;
     const serverResponse = await new Promise((resolve, reject) => {
 
         const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
 
         client.on('message', (message) => {
             const data = JSON.parse(message);
-            if (data.type === 'serverRequest') {
+            if (data.type === 'serverMessage') {
+                dat = data;
+            } else if (data.type === 'serverRequest') {
                 client.send('Bob');
             } else if (data.type === 'userList') {
                 resolve(data);
@@ -42,6 +45,7 @@ test('One client connects to the server', async () => {
 
     });
 
+    assert(dat.message === 'Connected');
     assert(serverResponse.users.length === 1);
     assert(serverResponse.users[0] === 'Bob');
 });
@@ -170,7 +174,6 @@ test('Name already taken rejected', async () => {
             } else if (data.type === 'userList') {
                 resolve(data);
                 clearTimeout(timeout);
-                client1.close();
             }
         });
 
@@ -191,7 +194,6 @@ test('Name already taken rejected', async () => {
             } else if (data.type === 'error') {
                 resolve(data);
                 clearTimeout(timeout);
-                client2.close();
             }
         });
 
@@ -202,11 +204,16 @@ test('Name already taken rejected', async () => {
         });
     });
 
+    try {
     const [response1, response2] = await Promise.all([serverResponse1, serverResponse2]);
 
-    assert(response1.users.length === 1);
-    assert(response1.users[0] === 'Alice');
-    assert(response2.message === 'Name already taken');
+        assert(response1.users.length === 1);
+        assert(response1.users[0] === 'Alice');
+        assert(response2.message === 'Name already taken');
+    } finally {
+        client1.close();
+        client2.close();
+    }
 });
 
 // Multi-client lobby
@@ -340,8 +347,8 @@ test('/users returns every user in the room', async () => {
         });
     });
 
-    const [response1, response2, response3] = await Promise.all([serverResponse1, serverResponse2, serverResponse3]);
     try {
+        const [response1, response2, response3] = await Promise.all([serverResponse1, serverResponse2, serverResponse3]);
         assert(response3.users.length === 3);
         assert.deepStrictEqual([...response3.users].sort(), ['Alice', 'Bob', 'Charlie']);
     } finally {
@@ -461,7 +468,61 @@ test('/start with two players succeeds', async () => {
     assert(response2[1].message === 'Alice is picking first...' || response2[1].message === 'Bob is picking first...');
 });
 
+test('/start twice fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+
+    clients[0].client.send('/start');
+
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    assert(response.message === 'Draft already started');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
 // /pick rules
+test('/pick before start fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+
+    clients[0].client.send('/pick lebron james');
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+
+    assert(response.message === 'Draft not started yet');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('/pick on wrong turn fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+
+    clients[1].client.send('/pick lebron james');
+    const response = await waitForMessage(clients[1].client, (data) => data.type === 'error');
+    assert(response.message === 'It is Alice\'s turn to pick');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('/pick with empty name fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    clients[0].client.send('/pick ');
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    assert(response.message === 'Player name cannot be empty');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('/pick with invalid name fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    clients[0].client.send('/pick fake player');
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    assert(response.message === 'Player does not exist');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
 test('Valid pick', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
     await startDraftClient(clients[0]);
@@ -477,6 +538,38 @@ test('Valid pick', async () => {
     assert(response1.message === 'Alice picked lebron james');
     assert(response2.type === 'serverMessage');
     assert(response2.message === 'Bob is picking next...');
+
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('Player already picked fails', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+
+    clients[0].client.send('/pick lebron james');
+    clients[1].client.send('/pick lebron james');
+    const response = await waitForMessage(clients[1].client, (data) => data.type === 'error');
+    assert(response.message === 'Player already picked by Alice');
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('Pick turn wraps', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+
+    clients[0].client.send('/pick lebron james');
+
+    await waitForMessage(clients[1].client, (data) => data.type === 'serverMessage' && data.message.includes(' picked '));
+
+    clients[1].client.send('/pick stephen curry');
+
+    const p1 = await waitForMessage(clients[0].client, (data) => data.message === 'Alice is picking next...');
+
+    clients[0].client.send('/pick nikola jokic');
+
+    const p2 = await waitForMessage(clients[1].client, (data) => data.message === 'Alice picked nikola jokic');
 
     clients[0].client.close();
     clients[1].client.close();
