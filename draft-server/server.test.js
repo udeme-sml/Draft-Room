@@ -351,6 +351,16 @@ test('/users returns every user in the room', async () => {
     }
 });
 
+test('Client disconnects before draft', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    
+    clients[1].client.close();
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'userLeft');
+    assert(response.type === 'userLeft');
+    assert(response.name === 'Bob');
+    clients[0].client.close();
+})
+
 // /start rules
 test('/start with one player fails', async () => {
     const client = new WebSocket(`ws://localhost:${server.address().port}`);
