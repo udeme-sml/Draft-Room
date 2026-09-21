@@ -602,3 +602,69 @@ test('Test goes to others only', async () => {
     clients[0].client.close();
     clients[1].client.close();
 })
+
+// Join during draft/waiting list
+test('Join after draft started', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    const client3 = new WebSocket(`ws://localhost:${server.address().port}`);
+    const response = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+
+        client3.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client3.send('Charlie');
+            } else if (data.type === 'error') {
+                resolve(data);
+                clearTimeout(timeout);
+                client3.close();
+            }
+        });
+
+        client3.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client3.close();
+        });
+    });
+
+    assert(response.message === 'Draft already started, wait for it to end');
+    clients[0].client.close();
+    clients[1].client.close();
+    client3.close();
+})
+
+test('Waiting list promoted after draft ends', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    const client3 = new WebSocket(`ws://localhost:${server.address().port}`);
+    const responsePromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+
+        client3.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client3.send('Charlie');
+            } else if (data.type === 'userList') {
+                resolve(data);
+                clearTimeout(timeout);
+            }
+        });
+
+        client3.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client3.close();
+        });
+    });
+
+    await waitForMessage(client3, (data) => data.type === 'error');
+    clients[0].client.close();
+
+    const response = await responsePromise;
+    assert(response.users.length === 2);
+    assert(response.users.includes('Charlie'));
+    clients[1].client.close();
+    client3.close();
+})
