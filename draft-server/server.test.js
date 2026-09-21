@@ -668,3 +668,46 @@ test('Waiting list promoted after draft ends', async () => {
     clients[1].client.close();
     client3.close();
 })
+
+// Disconnect during draft
+test('Leave during draft ends draft', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    clients[0].client.close();
+    const response = await waitForMessage(clients[1].client, (data) => data.type === 'error');
+    assert(response.message === 'Draft ended because Alice left');
+    clients[1].client.close();
+})
+
+test('Leave from waiting list only', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    await startDraftClient(clients[0]);
+    const client3 = new WebSocket(`ws://localhost:${server.address().port}`);
+    const start = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Test timed out')), 2000);
+        client3.on('message', (message) => {
+            const data = JSON.parse(message);
+            if (data.type === 'serverRequest') {
+                client3.send('Charlie');
+                resolve(data);
+                clearTimeout(timeout);
+            }
+        });
+
+        client3.on('error', (error) => {
+            reject(error);
+            clearTimeout(timeout);
+            client3.close();
+        });
+    });
+
+    client3.close();
+    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error', 200).then(
+        () => {
+            throw new Error('There should not be an error when leaving from waiting list only');
+        },
+        () => {}
+    );
+    clients[0].client.close();
+    clients[1].client.close();
+})
