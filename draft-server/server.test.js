@@ -484,8 +484,9 @@ test('/start twice fails', async () => {
 test('/pick before start fails', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
 
+    const responsePromise = waitForMessage(clients[0].client, (data) => data.type === 'error');
     clients[0].client.send('/pick lebron james');
-    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    const response = await responsePromise;
 
     assert(response.message === 'Draft not started yet');
     clients[0].client.close();
@@ -496,8 +497,9 @@ test('/pick on wrong turn fails', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
     await startDraftClient(clients[0]);
 
+    const responsePromise = waitForMessage(clients[1].client, (data) => data.type === 'error');
     clients[1].client.send('/pick lebron james');
-    const response = await waitForMessage(clients[1].client, (data) => data.type === 'error');
+    const response = await responsePromise;
     assert(response.message === 'It is Alice\'s turn to pick');
     clients[0].client.close();
     clients[1].client.close();
@@ -506,8 +508,9 @@ test('/pick on wrong turn fails', async () => {
 test('/pick with empty name fails', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
     await startDraftClient(clients[0]);
+    const responsePromise = waitForMessage(clients[0].client, (data) => data.type === 'error');
     clients[0].client.send('/pick ');
-    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    const response = await responsePromise;
     assert(response.message === 'Player name cannot be empty');
     clients[0].client.close();
     clients[1].client.close();
@@ -516,8 +519,9 @@ test('/pick with empty name fails', async () => {
 test('/pick with invalid name fails', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
     await startDraftClient(clients[0]);
+    const responsePromise = waitForMessage(clients[0].client, (data) => data.type === 'error');
     clients[0].client.send('/pick fake player');
-    const response = await waitForMessage(clients[0].client, (data) => data.type === 'error');
+    const response = await responsePromise;
     assert(response.message === 'Player does not exist');
     clients[0].client.close();
     clients[1].client.close();
@@ -547,9 +551,12 @@ test('Player already picked fails', async () => {
     const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
     await startDraftClient(clients[0]);
 
+    const r1 =waitForMessage(clients[1].client, (data) => data.type === 'error');
     clients[0].client.send('/pick lebron james');
+    await waitForMessage(clients[0].client, (data) => data.message === 'Alice picked lebron james');
     clients[1].client.send('/pick lebron james');
-    const response = await waitForMessage(clients[1].client, (data) => data.type === 'error');
+
+    const response = await r1;
     assert(response.message === 'Player already picked by Alice');
     clients[0].client.close();
     clients[1].client.close();
@@ -571,6 +578,27 @@ test('Pick turn wraps', async () => {
 
     const p2 = await waitForMessage(clients[1].client, (data) => data.message === 'Alice picked nikola jokic');
 
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+// chat
+test('Test goes to others only', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+
+    const responsePromise = waitForMessage(clients[1].client, (data) => data.type === 'chat');
+    const aliceCheck = waitForMessage(clients[0].client, (data) => data.type === 'chat', 100).then(
+        () => {
+            throw new Error('Alice should not receive the message');
+        },
+        () => {}
+    );
+
+    clients[0].client.send('Hello');
+
+    const [response] = await Promise.all([responsePromise, aliceCheck]);
+    assert(response.text === 'Hello');
+    assert(response.from === 'Alice');
     clients[0].client.close();
     clients[1].client.close();
 })
