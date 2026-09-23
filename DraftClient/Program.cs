@@ -68,6 +68,8 @@ namespace DraftClient
                                 case "userLeft":
                                     ConsoleExtensions.WriteLine($"{json["name"]?.ToString()} left the chat", ConsoleColor.Red);
                                     break;
+                                case "draftState":
+                                    break;
                                 default:
                                     Console.WriteLine(json["message"]?.ToString());
                                     break;
