@@ -34,6 +34,7 @@ export default function createServer(port) {
     let waitingList = [];
     let turn = 0;
     let draftStarted = false;
+    let picks = [];
 
     wss.on('connection', function connection(ws) {
         ws.on('error', console.error);
@@ -90,13 +91,14 @@ export default function createServer(port) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Not enough players to start draft' }))
                     return;
                 }
+                draftStarted = true;
                 wss.clients.forEach(function each(client) {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({ type: 'serverMessage', message: 'Draft started' }));
-                        client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} is picking first...` }))
+                        client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} is picking first...` }));
+                        client.send(JSON.stringify(draftState()));
                     }
                 });
-                draftStarted = true;
                 return;
             }
             if (data.toString().trim().startsWith('/pick')) {
@@ -122,12 +124,9 @@ export default function createServer(port) {
                     ws.send(JSON.stringify({ type: 'error', message: `Player already picked by ${players[player]}` }))
                     return;
                 }
-                players[player] = ws.name;
-                wss.clients.forEach(function each(client) {
-                    if (client.readyState === WebSocket.OPEN) {
-                        client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} picked ${player}` }))
-                    }
-                });
+                const picker = turnOrder[turn];
+                players[player] = picker;
+                picks.push({ player, by: picker });
                 if (turn >= turnOrder.length - 1) {
                     turn = 0
                 } else {
@@ -135,6 +134,8 @@ export default function createServer(port) {
                 }
                 wss.clients.forEach(function each(client) {
                     if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: 'serverMessage', message: `${picker} picked ${player}` }))
+                        client.send(JSON.stringify(draftState()));
                         client.send(JSON.stringify({ type: 'serverMessage', message: `${turnOrder[turn]} is picking next...` }))
                     }
                 });
@@ -171,6 +172,7 @@ export default function createServer(port) {
             } else if (draftStarted && ws.name !== null) {
                 draftStarted = false;
                 turn = 0;
+                picks = [];
                 let playersArray = Object.keys(players);
                 for (let i = 0; i < playersArray.length; i++) {
                     players[playersArray[i]] = null;
@@ -219,6 +221,15 @@ export default function createServer(port) {
             });
             waitingList = []; //clears the waiting list
         }
+    }
+
+    function draftState() {
+        return {
+            type: 'draftState',
+            turnOrder: [...turnOrder],
+            onClock: draftStarted ? turnOrder[turn] : null,
+            picks: [...picks]
+        };
     }
 
     return wss;

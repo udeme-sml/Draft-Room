@@ -711,3 +711,36 @@ test('Leave from waiting list only', async () => {
     clients[0].client.close();
     clients[1].client.close();
 })
+
+// Draft state
+test('Empty draft state on start', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    const draftStatePromise = waitForMessage(clients[0].client, (data) => data.type === 'draftState');
+    await startDraftClient(clients[0]);
+
+    const response = await draftStatePromise;
+    
+    assert(response.turnOrder.length === 2);
+    assert(response.onClock === 'Alice');
+    assert(response.picks.length === 0);
+    clients[0].client.close();
+    clients[1].client.close();
+})
+
+test('Draft state on pick', async () => {
+    const clients = await connectLobby(server.address().port, ['Alice', 'Bob']);
+    const startDraftState = waitForMessage(clients[0].client, (data) => data.type === 'draftState');
+    await startDraftClient(clients[0]);
+
+    await startDraftState;
+    const pickDraftState = waitForMessage(clients[0].client, (data) => data.type === 'draftState' && data.picks.length === 1);
+    clients[0].client.send('/pick lebron james');
+    const response = await pickDraftState;
+
+    assert(response.turnOrder.length === 2);
+    assert(response.onClock === 'Bob');
+    assert(response.picks[0].player === 'lebron james');
+    assert(response.picks[0].by === 'Alice');
+    clients[0].client.close();
+    clients[1].client.close();
+})
