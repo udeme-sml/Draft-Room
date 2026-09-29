@@ -5,7 +5,19 @@ import java.util.Map;
 
 public class PlayerPool {
     private final Map<String, String> players = new HashMap<>();
-    
+
+    public boolean contains(String playerName) {
+        return players.containsKey(playerName.toLowerCase());
+    }
+
+    public String get(String playerName) {
+        return players.get(playerName.toLowerCase());
+    }
+
+    public void set(String playerName, String picker) {
+        players.put(playerName.toLowerCase(), picker);
+    }
+
     public PlayerPool() {
         players.put("lebron james", null);
         players.put("stephen curry", null);

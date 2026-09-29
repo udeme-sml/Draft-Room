@@ -4,19 +4,22 @@ Reference: [`project1_draft_room_spec.md`](project1_draft_room_spec.md)
 
 ## Overall
 
-There is a **working WebSocket lobby and draft loop** on a single in-memory room, plus a **console C# client**. The server now broadcasts structured **`draftState`** on `/start` and after each accepted `/pick` (alongside existing `serverMessage` text). The spec’s full **“done” bar** — C# board from that state, draft completion, timer, multi-room, reconnect — is **not met yet**. Roughly **~50%** of core mechanics exist.
+There is a **working WebSocket lobby and draft loop** on a single in-memory room (Node), plus a **console C# client**. The server broadcasts structured **`draftState`** on `/start` and after each accepted `/pick` (alongside existing `serverMessage` text). A **Spring Boot port** (`draft-server-java/`) is in progress: **domain logic only** — no WebSocket layer yet.
+
+The spec’s full **“done” bar** — C# board from that state, draft completion, timer, multi-room, reconnect — is **not met yet**. Roughly **~50%** of core mechanics exist on Node; the Java server is **~15%** of the port scope (in-memory rules, not on the wire).
 
 **26 automated WebSocket tests** cover lobby behavior, `/pick` rules, and **`draftState`** (see [`TESTS.md`](TESTS.md) for the original 24-scenario checklist plus draft-state tests).
 
 | Area | Spec expectation | Current state |
 |------|------------------|---------------|
-| Real-time networking | Push on every change | **Partial** — `draftState` + legacy `serverMessage` strings |
-| Server-authoritative picks | Validate turn + availability | **Yes** — tested |
+| Real-time networking | Push on every change | **Partial** — `draftState` + legacy `serverMessage` strings (Node) |
+| Server-authoritative picks | Validate turn + availability | **Yes (Node)** — tested; **in progress (Java)** — `DraftRoom` only |
 | Shared board payload | Structured state for all clients | **Partial (server)** — `draftState` on wire; **C# ignores it** (no-op `case`) |
 | Multi-room | Many independent rooms | **No** — one global draft instance |
 | Full draft domain | Snake, rounds, timer, end condition | **Partial** — linear wrap only; no completion |
 | C# client architecture | Network / model / UI layers | **No** — single `DraftClient/Program.cs` |
 | NBA data | BallDontLie API | **No** — hardcoded ~22-player pool |
+| Java / Spring Boot port | Same protocol on 8080 | **Started** — skeleton + domain; WebSocket not wired |
 | “Done” demo | 2+ clients, live board, reject bad picks | **Picks + rejects work**; board not rendered in client yet |
 
 ---
@@ -64,7 +67,7 @@ Internal server also keeps the `players` map (pool → picker or `null`) for val
 |----------------|--------|----------------------|
 | In-memory state | **Partial** | Single draft instance, not multiple rooms |
 | Room + participant on connection | **Partial** | Name on first message; **no room id** |
-| Validate actions | **Done (current scope)** | **26 tests** in `server.test.js` |
+| Validate actions | **Done (current scope)** | **26 tests** in `naming.test.js`, `lobby.test.js`, `draft.test.js` |
 | Broadcast state changes | **Partial** | Lobby/chat events + **`draftState`** + `serverMessage` |
 | Server-side pick clock | **Not started** | — |
 | Disconnect / reconnect | **Gap vs spec** | Mid-draft leave ends draft and clears `picks`; **tested** |
@@ -72,6 +75,24 @@ Internal server also keeps the `players` map (pool → picker or `null`) for val
 **Extras:** lobby chat, `/users`, waiting list (promoted on draft end via `onDraftEnd()`).
 
 **Entry point:** `draft-server/index.js` on **8080**.
+
+---
+
+## Server (Java — Spring Boot, in progress)
+
+Parallel port beside Node; target is the same WebSocket text protocol and **`draftState`** JSON on port **8080** (narrower feature set: no chat, waiting list, or disconnect-reset in first cut).
+
+| Responsibility | Status | Implementation notes |
+|----------------|--------|----------------------|
+| Spring Boot app | **Done (skeleton)** | Boot **4.1.1**, Java **25**; `contextLoads` test only |
+| Domain: join / start / pick | **Partial** | `DraftRoom`, `PlayerPool`, `Pick`, `DraftState` under `domain/` |
+| Hardcoded 22-player pool | **Done** | Keys aligned with `draft-server/server.js` |
+| `getDraftState()` | **Done (domain)** | `turnOrder`, `onClock`, `picks` — not serialized/broadcast yet |
+| WebSocket handler | **Not started** | No handler config or message routing |
+| Thread safety | **Not started** | Room mutations not synchronized yet |
+| Parity tests | **Not started** | No Java unit tests for `DraftRoom`; Node black-box tests not run against Java |
+
+**Entry point (when wired):** `draft-server-java` — `mvn spring-boot:run` (HTTP/WebSocket on **8080** per `application.properties`).
 
 ---
 
@@ -91,7 +112,7 @@ Internal server also keeps the `players` map (pool → picker or `null`) for val
 
 | Spec | Status |
 |------|--------|
-| BallDontLie API | **Not integrated** — static list in `server.js` |
+| BallDontLie API | **Not integrated** — static list in `server.js` / `PlayerPool.java` |
 
 ---
 
@@ -117,11 +138,14 @@ Auth, persistence, polished UI, league features, deployment. In-memory-only and 
 | Item | Status |
 |------|--------|
 | Checklist | [`TESTS.md`](TESTS.md) — original **24/24** lobby/draft scenarios |
-| Node tests | **26 passing** — includes `Empty draft state on start`, `Draft state on pick` |
+| Node tests | **26** in `naming.test.js`, `lobby.test.js`, `draft.test.js` — includes `Empty draft state on start`, `Draft state on pick` |
 | Helpers | `draft-server/test-helpers.js` |
-| CI | `.github/workflows/test.yml` → `node --test server.test.js` |
+| Java tests | **1** — Spring context smoke test only |
+| CI | `.github/workflows/test.yml` → `node --test naming.test.js lobby.test.js draft.test.js` |
 
-**Local:** `cd draft-server && node --test server.test.js`
+**Local (Node):** `cd draft-server && node --test naming.test.js lobby.test.js draft.test.js`
+
+**Local (Java):** `cd draft-server-java && mvn test`
 
 **Optional hardening:** per-test server instance; extend `startDraftClient` to await post-start `draftState`; document wire protocol in README (done).
 
@@ -130,11 +154,13 @@ Auth, persistence, polished UI, league features, deployment. In-memory-only and 
 ## Suggested next milestones
 
 1. **C# draft model + console board** — parse `draftState`, print order / on-clock / picks (drop reliance on parsing `serverMessage`).
-2. **Draft completion** — N rounds × teams; optional snake order.
-3. **Per-pick timer** — server clock + timeout rule.
-4. **Multi-room** — room id; isolated state per room.
-5. **Reconnect** — reclaim seat without ending draft.
-6. **BallDontLie** — populate pool at startup.
+2. **Java WebSocket + broadcast** — message routing for name, `/start`, `/pick`; JSON `draftState` + `serverMessage` parity with Node.
+3. **Java domain tests** — unit tests for `DraftRoom`; optional Node black-box suite against Java on 8080.
+4. **Draft completion** — N rounds × teams; optional snake order.
+5. **Per-pick timer** — server clock + timeout rule.
+6. **Multi-room** — room id; isolated state per room.
+7. **Reconnect** — reclaim seat without ending draft.
+8. **BallDontLie** — populate pool at startup.
 
 ---
 
@@ -146,7 +172,8 @@ Draft Room/
 ├── README.md
 ├── STATUS.md
 ├── TESTS.md
-├── draft-server/          # server.js, server.test.js, test-helpers.js
+├── draft-server/          # server.js, naming/lobby/draft.test.js, test-helpers.js
+├── draft-server-java/     # Spring Boot port (domain + skeleton)
 ├── DraftClient/
 └── .github/workflows/test.yml
 ```
