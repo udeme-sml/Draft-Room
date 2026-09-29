@@ -21,7 +21,7 @@ jobs:
 
           - name: Run tests
             working-directory: draft-server
-            run: node --test server.test.js
+            run: node --test naming.test.js lobby.test.js draft.test.js
                 
 
         

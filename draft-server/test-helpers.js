@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import createServer from './server.js';
 
 function waitForOpen(ws, timeoutMs = 2000) {
     return new Promise((resolve, reject) => {
@@ -94,4 +95,29 @@ async function startDraftClient(lobbyClient, timeoutMs = 2000) {
     return [draftStarted, pickingFirst];
 }
 
-export { waitForOpen, waitForMessage, connectAndName, connectLobby, startDraftClient };
+function closeTestServer(server) {
+    for (const client of [...server.clients]) {
+        client.terminate();
+    }
+
+    return new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+    });
+}
+
+/** Fresh room for one test. Closed after the test, including on failure. */
+async function useTestServer(t) {
+    const server = createServer(0);
+    t.after(() => closeTestServer(server));
+
+    if (server.address()) return server;
+
+    await new Promise((resolve, reject) => {
+        server.once('listening', resolve);
+        server.once('error', reject);
+    });
+
+    return server;
+}
+
+export { waitForOpen, waitForMessage, connectAndName, connectLobby, startDraftClient, useTestServer };
