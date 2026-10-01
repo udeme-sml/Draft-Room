@@ -19,9 +19,15 @@ namespace DraftClient
 
     class Program
     {
+        private const string DefaultServerUrl = "ws://localhost:8080";
+
         private static async Task Main(string[] args)
         {
-            Uri serverUri = new Uri("ws://localhost:8080");
+            string url = args.Length > 0
+                ? args[0]
+                : Environment.GetEnvironmentVariable("DRAFT_SERVER_URL") ?? DefaultServerUrl;
+
+            Uri serverUri = new Uri(url);
             await ConnectWebSocketAsync(serverUri);
         }
 
