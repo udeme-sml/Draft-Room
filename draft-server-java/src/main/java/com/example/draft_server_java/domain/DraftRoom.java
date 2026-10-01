@@ -14,7 +14,7 @@ public class DraftRoom {
         this.playerPool = playerPool;
     }
 
-    public void join(String playerName) {
+    public synchronized void join(String playerName) {
         String trimmedName = playerName.trim();
         if (trimmedName.isEmpty()) {
             throw new IllegalArgumentException("Name cannot be empty");
@@ -36,7 +36,7 @@ public class DraftRoom {
         turnOrder.add(trimmedName.replaceAll(" ", "_"));
     }
 
-    public void startDraft() {
+    public synchronized void startDraft() {
         if (draftStarted) {
             throw new IllegalStateException("Draft already started");
         }
@@ -46,7 +46,7 @@ public class DraftRoom {
         draftStarted = true;
     }
 
-    public void pick(String picker, String pickedPlayer) {
+    public synchronized void pick(String picker, String pickedPlayer) {
         String trimmedPickedPlayer = pickedPlayer.trim().toLowerCase();
         if (!draftStarted) {
             throw new IllegalStateException("Draft not started yet");
@@ -72,7 +72,7 @@ public class DraftRoom {
         }
     }
 
-    public DraftState getDraftState() {
+    public synchronized DraftState getDraftState() {
         String onClock = draftStarted ? turnOrder.get(turn) : null;
         return new DraftState(
             List.copyOf(turnOrder),
