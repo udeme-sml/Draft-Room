@@ -1,9 +1,13 @@
 package com.example.draft_server_java.websocket;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -18,12 +22,15 @@ import com.example.draft_server_java.websocket.outbound.ErrorOut;
 import com.example.draft_server_java.websocket.outbound.OutboundMessage;
 import com.example.draft_server_java.websocket.outbound.ServerMessageOut;
 import com.example.draft_server_java.websocket.outbound.ServerRequestOut;
+import com.example.draft_server_java.websocket.outbound.UserJoinedOut;
+import com.example.draft_server_java.websocket.outbound.UserListOut;
 
 import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class DraftWebSocketHandler extends TextWebSocketHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(DraftWebSocketHandler.class);
     private static final String ATTR_NAME = "name";
 
     private final ObjectMapper objectMapper;
@@ -60,31 +67,58 @@ public class DraftWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
+        log.info("connection established: {}", session.getId());
         try {
             send(session, new ServerMessageOut("Connected"));
             send(session, new ServerRequestOut("Name: "));
         } catch (IOException e) {
             sessions.remove(session);
+            log.warn("failed to greet session {}", session.getId(), e);
         }
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
+        String payload = message.getPayload();
+        log.info("received: {}", payload);
         String name = sessionName(session);
         if (name == null) {
-            handleNameMessage(session, message.getPayload());
+            handleNameMessage(session, payload);
             return;
         }
-        handleCommandMessage(session, name, message.getPayload());
+        handleCommandMessage(session, name, payload);
     }
 
     private void handleNameMessage(WebSocketSession session, String raw) throws IOException {
         try {
             room.join(raw);
-            session.getAttributes().put(ATTR_NAME, normalizeName(raw));
+            String name = normalizeName(raw);
+            session.getAttributes().put(ATTR_NAME, name);
+            notifyUserJoined(session, name);
+            send(session, new UserListOut(getConnectedNames()));
+            log.info("{} joined (session {})", name, session.getId());
         } catch (IllegalArgumentException | IllegalStateException e) {
             send(session, new ErrorOut(e.getMessage()));
         }
+    }
+
+    private void notifyUserJoined(WebSocketSession joiner, String joinedName) throws IOException {
+        for (WebSocketSession other : sessions) {
+            if (other.isOpen() && other != joiner && sessionName(other) != null) {
+                send(other, new UserJoinedOut(joinedName));
+            }
+        }
+    }
+
+    private List<String> getConnectedNames() {
+        List<String> names = new ArrayList<>();
+        for (WebSocketSession s : sessions) {
+            String n = sessionName(s);
+            if (s.isOpen() && n != null) {
+                names.add(n);
+            }
+        }
+        return names;
     }
 
     private void handleCommandMessage(WebSocketSession session, String name, String payload) throws IOException {
@@ -93,6 +127,8 @@ public class DraftWebSocketHandler extends TextWebSocketHandler {
             handleStart(session);
         } else if (trimmed.startsWith("/pick")) {
             handlePick(session, name, trimmed);
+        } else if (trimmed.equals("/users")) {
+            send(session, new UserListOut(getConnectedNames()));
         }
     }
 
@@ -104,6 +140,7 @@ public class DraftWebSocketHandler extends TextWebSocketHandler {
             broadcast(new ServerMessageOut("Draft started"));
             broadcast(new ServerMessageOut(first + " is picking first..."));
             broadcast(new DraftStateOut(state));
+            log.info("draft started, first on clock: {}", first);
         } catch (IllegalStateException e) {
             send(session, new ErrorOut(e.getMessage()));
         }
@@ -126,6 +163,7 @@ public class DraftWebSocketHandler extends TextWebSocketHandler {
             broadcast(new ServerMessageOut(pickerName + " picked " + playerKey));
             broadcast(new DraftStateOut(state));
             broadcast(new ServerMessageOut(next + " is picking next..."));
+            log.info("{} picked {}, next: {}", pickerName, playerKey, next);
         } catch (IllegalArgumentException | IllegalStateException e) {
             send(session, new ErrorOut(e.getMessage()));
         }
@@ -134,6 +172,7 @@ public class DraftWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session);
+        log.info("connection closed: {} ({})", session.getId(), sessionName(session));
     }
 
     public Set<WebSocketSession> getSessions() {
