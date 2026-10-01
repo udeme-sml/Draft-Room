@@ -22,6 +22,16 @@ jobs:
           - name: Run tests
             working-directory: draft-server
             run: node --test naming.test.js lobby.test.js draft.test.js
-                
 
-        
+    java-test:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-java@v4
+          with:
+            java-version: '25'
+            distribution: temurin
+            cache: maven
+        - name: Run Java tests
+          working-directory: draft-server-java
+          run: mvn -B test
