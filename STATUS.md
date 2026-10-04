@@ -184,10 +184,8 @@ Auth, persistence, polished UI, league features, deployment. In-memory-only and 
 
 ```
 Draft Room/
-├── project1_draft_room_spec.md
 ├── README.md
 ├── STATUS.md
-├── TESTS.md
 ├── .env.example              # DRAFT_SERVER_URL for client
 ├── draft-server/             # server.js, naming/lobby/draft.test.js, test-helpers.js
 ├── draft-server-java/        # Spring Boot port (domain + WebSocket + Dockerfile)
