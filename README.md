@@ -1,14 +1,15 @@
 # Live Draft Room
 
-A real-time multiplayer NBA fantasy draft. The **Node.js** WebSocket server is the reference implementation (lobby chat, waiting list, disconnect rules). A **Spring Boot** server in `draft-server-java/` speaks the same core protocol on port **8080** (name, `/start`, `/pick`, `draftState`, `serverMessage`) with a **narrower** feature set—no chat, no waiting list, no mid-draft disconnect reset. A **C#** console client connects to either server, chats (Node only), and submits picks. Both servers reject out-of-turn and invalid picks.
+A real-time multiplayer NBA fantasy draft. The **Node.js** WebSocket server is the reference implementation (lobby chat, waiting list, disconnect rules). A **Spring Boot** server in `draft-server-java/` implements the same **core** protocol on port **8080** (name, `/start`, `/pick`, `draftState`, `serverMessage`) for the scoped Java port—**complete through local Docker and EC2 deploy**—but with a **narrower** feature set than Node (no chat, no waiting list, no mid-draft disconnect reset). A **C#** console client connects to either server, chats (Node only), and submits picks. Both servers reject out-of-turn and invalid picks.
 
-One shared in-memory room per process, a hardcoded player pool, and linear turn order (wraps to the first drafter). After `/start` and on each valid `/pick`, the server broadcasts structured **`draftState`** (the C# client accepts it but does not display a board yet). See [STATUS.md](STATUS.md) for progress vs the full project spec.
+One shared in-memory room per process, a hardcoded player pool, and linear turn order (wraps to the first drafter). After `/start` and on each valid `/pick`, the server broadcasts structured **`draftState`** (the C# client accepts it but does not display a board yet). See [STATUS.md](STATUS.md) for progress vs the full project spec and **Java known issues** (draft does not end; stale room after everyone disconnects).
 
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 22 — reference draft server (`draft-server/`)
 - [.NET 10](https://dotnet.microsoft.com/download) SDK — console client
-- **Optional (Java port):** JDK 25+ and [Maven](https://maven.apache.org/) — `draft-server-java/`
+- **Java port:** JDK 25+ and [Maven](https://maven.apache.org/) — `draft-server-java/`
+- **Optional (Java deploy):** [Docker](https://www.docker.com/products/docker-desktop/) for container image; AWS EC2 for remote `ws://` demo
 
 ## Run it
 
@@ -30,6 +31,16 @@ mvn spring-boot:run
 ```
 
 WebSocket endpoint: `ws://localhost:8080/` (same port as Node).
+
+**Docker (Java):**
+
+```bash
+cd draft-server-java
+docker build -t draft-room-java .
+docker run --rm -p 8080:8080 draft-room-java
+```
+
+For EC2, build/save the image locally, copy to the instance, `docker load`, and run with `-p 8080:8080` (security group must allow TCP 8080). Details: personal playbook notes if you keep them locally.
 
 ### C# client
 
@@ -57,6 +68,15 @@ When you see `Name:`, enter a display name (1–16 characters; spaces become und
 | `quit` | Closes the client. |
 
 On Node, joining after `/start` puts you on a waiting list until the draft ends (e.g. someone disconnects mid-draft, which resets picks). Turn order is join order among active drafters. The Java server rejects new names once the draft has started.
+
+### Java vs Node (behavior gaps)
+
+| Topic | Node | Java |
+| ----- | ---- | ---- |
+| Chat | Yes | No |
+| Waiting list / join after start | Yes | No — `Draft already started, wait for it to end` |
+| Ending a draft | Mid-draft disconnect resets room (tested) | **No end condition** — `draftStarted` stays true for the process lifetime |
+| Everyone disconnects | Draft ends; new clients can join fresh | Room stays “in draft”; new clients get **draft already started** until the JVM restarts |
 
 ## WebSocket: `draftState`
 
@@ -93,14 +113,14 @@ cd draft-server-java
 mvn test
 ```
 
-**16** tests: Spring context smoke, **`DraftRoom`** domain rules (including concurrency), and **`DraftStateOut`** JSON shape. CI does not run Java yet.
+**18** tests: Spring context smoke, **`DraftRoom`** domain rules (including concurrency), **`DraftStateOut`** JSON shape, and WebSocket integration (start + pick over a live port). CI runs `mvn test` on push in the same workflow.
 
 ## Layout
 
 ```
 Draft Room/
 ├── draft-server/          # Node WebSocket server (index.js, server.js) + tests
-├── draft-server-java/     # Spring Boot port (domain + WebSocket)
+├── draft-server-java/     # Spring Boot port (domain + WebSocket + Dockerfile)
 ├── DraftClient/           # C# console client
 ├── STATUS.md              # status vs spec
 ├── TESTS.md               # server test checklist
